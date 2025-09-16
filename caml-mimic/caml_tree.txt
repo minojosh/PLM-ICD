@@ -1,0 +1,102 @@
+caml-mimic/
+├── LICENSE
+├── README.md
+├── constants.py
+├── dataproc
+│   ├── __init__.py
+│   ├── build_vocab.py
+│   ├── concat_and_split.py
+│   ├── extract_wvs.py
+│   ├── get_discharge_summaries.py
+│   ├── prepare_qualitative_evaluation.py
+│   ├── vocab_index_descriptions.py
+│   └── word_embeddings.py
+├── datasets.py
+├── evaluation.py
+├── get_metrics_for_saved_predictions.py
+├── learn
+│   ├── __init__.py
+│   ├── interpret.py
+│   ├── models.py
+│   ├── tools.py
+│   └── training.py
+├── log_reg.py
+├── mimicdata
+│   ├── ICD9_descriptions
+│   ├── mimic2
+│   │   └── README.md
+│   └── mimic3
+│       ├── README.md
+│       ├── dev_50_hadm_ids.csv
+│       ├── dev_full_hadm_ids.csv
+│       ├── test_50_hadm_ids.csv
+│       ├── test_full_hadm_ids.csv
+│       ├── train_50_hadm_ids.csv
+│       └── train_full_hadm_ids.csv
+├── notebooks
+│   ├── data_mimic_IV_concat_note_label.py
+│   ├── dataproc_mimic_II.ipynb
+│   ├── dataproc_mimic_III.ipynb
+│   ├── dataproc_mimic_IV_exploration_icd10.ipynb
+│   └── dataproc_mimic_IV_exploration_icd9.ipynb
+├── persistence.py
+└── predictions
+    ├── CAML_mimic2_full
+    │   ├── evaluate_model.sh
+    │   ├── model.pth
+    │   ├── preds_test.psv
+    │   └── train_new_model.sh
+    ├── CAML_mimic3_50
+    │   ├── evaluate_model.sh
+    │   ├── model.pth
+    │   ├── preds_dev.psv
+    │   ├── preds_test.psv
+    │   └── train_new_model.sh
+    ├── CAML_mimic3_full
+    │   ├── evaluate_model.sh
+    │   ├── model.pth
+    │   ├── preds_dev.psv
+    │   ├── preds_test.psv
+    │   └── train_new_model.sh
+    ├── CNN_mimic2_full
+    │   ├── preds_test.psv
+    │   └── train_new_model.sh
+    ├── CNN_mimic3_50
+    │   ├── preds_test.psv
+    │   └── train_new_model.sh
+    ├── CNN_mimic3_full
+    │   ├── preds_dev.psv
+    │   ├── preds_test.psv
+    │   └── train_new_model.sh
+    ├── DRCAML_mimic2_full
+    │   ├── evaluate_model.sh
+    │   ├── model.pth
+    │   ├── preds_test.psv
+    │   └── train_new_model.sh
+    ├── DRCAML_mimic3_50
+    │   ├── preds_test.psv
+    │   └── train_new_model.sh
+    ├── DRCAML_mimic3_full
+    │   ├── evaluate_model.sh
+    │   ├── model.pth
+    │   ├── preds_dev.psv
+    │   ├── preds_test.psv
+    │   └── train_new_model.sh
+    ├── GRU_mimic2_full
+    │   ├── preds_test.psv
+    │   └── train_new_model.sh
+    ├── GRU_mimic3_50
+    │   ├── preds_test.psv
+    │   └── train_new_model.sh
+    ├── GRU_mimic3_full
+    │   ├── preds_dev.psv
+    │   ├── preds_test.psv
+    │   └── train_new_model.sh
+    ├── LR_mimic2_full
+    │   └── preds_test.psv
+    ├── LR_mimic3_50
+    │   └── preds_test.psv
+    └── LR_mimic3_full
+        └── preds_test.psv
+
+23 directories, 77 files
