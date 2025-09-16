@@ -3,3 +3,4 @@
 /home/justjosh/Projects/PLM-ICD/data/mimic4
 __pycache__/
 data/mimic*/*
+caml-mimic/predictions/*
