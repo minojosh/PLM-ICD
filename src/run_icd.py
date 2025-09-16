@@ -20,7 +20,8 @@ import os
 import random
 
 import datasets
-from datasets import load_dataset, load_metric
+from datasets import load_dataset
+from evaluate import load as load_metric
 from torch.utils.data.dataloader import DataLoader
 from tqdm.auto import tqdm
 
@@ -29,7 +30,6 @@ import torch
 import numpy as np
 from accelerate import Accelerator, DistributedDataParallelKwargs
 from transformers import (
-    AdamW,
     AutoConfig,
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -37,9 +37,11 @@ from transformers import (
     get_scheduler,
     set_seed,
 )
+from torch.optim import AdamW
 from modeling_bert import BertForMultilabelClassification
 from modeling_roberta import RobertaForMultilabelClassification
 from modeling_longformer import LongformerForMultilabelClassification
+from modeling_phi import PhiForMultilabelClassification
 from evaluation import all_metrics
 
 
@@ -49,7 +51,8 @@ logger = logging.getLogger(__name__)
 MODELS_CLASSES = {
     'bert': BertForMultilabelClassification,
     'roberta': RobertaForMultilabelClassification,
-    'longformer': LongformerForMultilabelClassification
+    'longformer': LongformerForMultilabelClassification,
+    'phi': PhiForMultilabelClassification
 }
 
 
@@ -103,7 +106,7 @@ def parse_args():
         type=str,
         help="The type of model",
         required=True,
-        choices=["bert", "roberta", "longformer"]
+        choices=["bert", "roberta", "longformer", "phi"]
     )
     parser.add_argument(
         "--model_mode",
@@ -262,7 +265,7 @@ def main():
     config = AutoConfig.from_pretrained(args.model_name_or_path, num_labels=num_labels, finetuning_task=args.task_name)
     if args.model_type == "longformer":
         config.attention_window = args.chunk_size
-    elif args.model_type in ["bert", "roberta"]:
+    elif args.model_type in ["bert", "roberta", "phi"]:
         config.model_mode = args.model_mode
     tokenizer = AutoTokenizer.from_pretrained(
         args.model_name_or_path,
