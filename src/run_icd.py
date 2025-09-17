@@ -21,7 +21,6 @@ import random
 
 import datasets
 from datasets import load_dataset
-from evaluate import load as load_metric
 from torch.utils.data.dataloader import DataLoader
 from tqdm.auto import tqdm
 
@@ -298,7 +297,7 @@ def main():
         result = tokenizer(*texts, padding=padding, max_length=args.max_length, truncation=True, add_special_tokens="cls" not in args.model_mode)
         if "label" in examples:
             result["labels"] = examples["label"]
-            result["label_ids"] = [[label_to_id[label.strip()] for label in labels.strip().split(';') if label.strip() != ""] if labels is not None else [] for labels in examples["label"]]
+            result["label_ids"] = [[label_to_id[label.strip()] for label in label_string.strip().split(';') if label.strip() != ""] if label_string is not None else [] for label_string in examples["label"]]
         return result
 
     remove_columns = raw_datasets["train"].column_names if args.train_file is not None else raw_datasets["validation"].column_names
@@ -399,7 +398,12 @@ def main():
 
     # Get the metric function
     if args.task_name is not None:
-        metric = load_metric("glue", args.task_name)
+        try:
+            from evaluate import load as load_metric
+            metric = load_metric("glue", args.task_name)
+        except ImportError:
+            print("Warning: 'evaluate' library not found. GLUE metrics will not be available.")
+            metric = None
 
     if args.num_train_epochs > 0:
         # Train!
