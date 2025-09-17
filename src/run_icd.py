@@ -37,6 +37,7 @@ from transformers import (
     get_scheduler,
     set_seed,
 )
+from peft import LoraConfig, PeftModel, get_peft_model
 from torch.optim import AdamW
 from modeling_bert import BertForMultilabelClassification
 from modeling_roberta import RobertaForMultilabelClassification
@@ -181,7 +182,25 @@ def parse_args():
     default=None,
     choices=["4bit", "8bit"],
     help="Optional quantization mode: '4bit' or '8bit'."
-)
+    )
+    parser.add_argument(
+    "--lora_r",
+    type=int,
+    default=8,
+    help="LoRA rank for QLoRA adapters."
+    )
+    parser.add_argument(
+        "--lora_alpha",
+        type=int,
+        default=32,
+        help="LoRA alpha scaling."
+    )
+    parser.add_argument(
+        "--lora_dropout",
+        type=float,
+        default=0.1,
+        help="LoRA dropout."
+    )
 
     parser.add_argument("--output_dir", type=str, default=None, help="Where to store the final model.")
     parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
@@ -284,12 +303,17 @@ def main():
         args.model_name_or_path,
         use_fast=not args.use_slow_tokenizer,
         do_lower_case=not args.cased)
-    # --- quantization config ---
+    # --- quantization setup ---
     quantization_config = None
     if args.quantization == "8bit":
         quantization_config = BitsAndBytesConfig(load_in_8bit=True)
     elif args.quantization == "4bit":
-        quantization_config = BitsAndBytesConfig(load_in_4bit=True)
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16,
+        )
 
     model_class = MODELS_CLASSES[args.model_type]
 
@@ -308,6 +332,20 @@ def main():
             quantization_config=quantization_config,
             device_map="auto" if quantization_config else None,
         )
+
+    # --- add LoRA if 4bit ---
+    if args.quantization == "4bit":
+        lora_config = LoraConfig(
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            target_modules=["q_proj", "v_proj"],  # adjust if model uses different names
+            lora_dropout=args.lora_dropout,
+            bias="none",
+            task_type="SEQ_CLS",  # since you’re doing sequence classification
+        )
+        model = get_peft_model(model, lora_config)
+        model.print_trainable_parameters()
+
 
 
     sentence1_key, sentence2_key = "text", None
