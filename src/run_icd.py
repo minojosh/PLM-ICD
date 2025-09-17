@@ -338,7 +338,7 @@ def main():
         lora_config = LoraConfig(
             r=args.lora_r,
             lora_alpha=args.lora_alpha,
-            target_modules=["q_proj", "v_proj"],  # adjust if model uses different names
+            target_modules=["Wqkv", "out_proj"],  # Target modules for Phi-1.5/MediPhi
             lora_dropout=args.lora_dropout,
             bias="none",
             task_type="SEQ_CLS",  # since you’re doing sequence classification
