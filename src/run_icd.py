@@ -31,6 +31,7 @@ from accelerate import Accelerator, DistributedDataParallelKwargs
 from transformers import (
     AutoConfig,
     AutoModelForSequenceClassification,
+    BitsAndBytesConfig
     AutoTokenizer,
     SchedulerType,
     get_scheduler,
@@ -54,6 +55,11 @@ MODELS_CLASSES = {
     'phi': PhiForMultilabelClassification
 }
 
+bnb_config = BitsAndBytesConfig(
+    load_in_8bit=True,           # or load_in_4bit=True
+    llm_int8_threshold=6.0,      # default; tweak if needed
+    llm_int8_has_fp16_weight=True
+)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Finetune a transformers model on a text classification task")
@@ -169,6 +175,14 @@ def parse_args():
     parser.add_argument(
         "--code_50", action='store_true', help="use only top-50 codes"
     )
+    parser.add_argument(
+    "--quantization",
+    type=str,
+    default=None,
+    choices=["4bit", "8bit"],
+    help="Optional quantization mode: '4bit' or '8bit'."
+)
+
     parser.add_argument("--output_dir", type=str, default=None, help="Where to store the final model.")
     parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
     args = parser.parse_args()
@@ -270,18 +284,31 @@ def main():
         args.model_name_or_path,
         use_fast=not args.use_slow_tokenizer,
         do_lower_case=not args.cased)
+    # --- quantization config ---
+    quantization_config = None
+    if args.quantization == "8bit":
+        quantization_config = BitsAndBytesConfig(load_in_8bit=True)
+    elif args.quantization == "4bit":
+        quantization_config = BitsAndBytesConfig(load_in_4bit=True)
+
     model_class = MODELS_CLASSES[args.model_type]
+
     if args.num_train_epochs > 0:
         model = model_class.from_pretrained(
             args.model_name_or_path,
             from_tf=bool(".ckpt" in args.model_name_or_path),
             config=config,
+            quantization_config=quantization_config,
+            device_map="auto" if quantization_config else None,
         )
     else:
         model = model_class.from_pretrained(
             args.output_dir,
             config=config,
+            quantization_config=quantization_config,
+            device_map="auto" if quantization_config else None,
         )
+
 
     sentence1_key, sentence2_key = "text", None
 

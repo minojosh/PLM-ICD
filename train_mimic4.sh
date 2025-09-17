@@ -27,6 +27,7 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True accelerate launch run_icd.py \
     --chunk_size 128 \
     --model_name_or_path $MODEL_NAME \
     --per_device_train_batch_size 1 \
+    --quantization 8bit \
     --gradient_accumulation_steps 8 \
     --gradient_checkpointing True \
     --fp16 True \
