@@ -31,7 +31,7 @@ from accelerate import Accelerator, DistributedDataParallelKwargs
 from transformers import (
     AutoConfig,
     AutoModelForSequenceClassification,
-    BitsAndBytesConfig
+    BitsAndBytesConfig,
     AutoTokenizer,
     SchedulerType,
     get_scheduler,
