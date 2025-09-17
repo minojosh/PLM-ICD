@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # PLM-ICD MIMIC-4 Training Script
 # Usage: ./train_mimic4.sh [roberta|phi] [epochs]
@@ -36,5 +37,7 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True accelerate launch run_icd.py \
     --model_type $MODEL_TYPE \
     --model_mode laat \
     --code_file ../data/mimic4/mimic4_icd10/ALL_CODES.txt
-
-echo "Training completed! Model saved to ../models/${MODEL_TYPE}-mimic4"
+set -euo pipefail
+if [ $? -eq 0 ]; then
+  echo "Training completed! Model saved to ../models/${MODEL_TYPE}-mimic4"
+fi

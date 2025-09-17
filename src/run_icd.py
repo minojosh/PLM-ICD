@@ -18,6 +18,7 @@ import logging
 import math
 import os
 import random
+import itertools
 
 import datasets
 from datasets import load_dataset
@@ -272,7 +273,7 @@ def main():
         data_files["validation"] = args.validation_file
     extension = (args.train_file if args.train_file is not None else args.validation_file).split(".")[-1]
     # Use map-style datasets (not streaming) so we can compute lengths and sample examples
-    raw_datasets = load_dataset(extension, data_files=data_files)
+    raw_datasets = load_dataset(extension, data_files=data_files, streaming=False)
     # See more about loading any type of standard or custom dataset at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
 
@@ -423,10 +424,19 @@ def main():
 
     if args.num_train_epochs > 0:
         train_dataset = processed_datasets["train"]
-        # Log a few random samples from the training set:
-        for index in random.sample(range(len(train_dataset)), 3):
-            logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
-            logger.info(f"Original tokens: {tokenizer.decode(train_dataset[index]['input_ids'])}")
+        # Log a few samples from the training set (robust to streaming datasets)
+        try:
+            if hasattr(train_dataset, "__len__"):
+                for index in random.sample(range(len(train_dataset)), min(3, len(train_dataset))):
+                    logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
+                    logger.info(f"Original tokens: {tokenizer.decode(train_dataset[index]['input_ids'])}")
+            else:
+                # Fallback for iterable datasets
+                for i, ex in enumerate(itertools.islice(train_dataset, 3)):
+                    logger.info(f"Sample (iterable) {i} of the training set: {ex}.")
+        except TypeError:
+            for i, ex in enumerate(itertools.islice(train_dataset, 3)):
+                logger.info(f"Sample (iterable-guard) {i} of the training set: {ex}.")
 
     def data_collator(features):
         batch = dict()
