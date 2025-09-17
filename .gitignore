@@ -22,4 +22,6 @@ data/mimic4/mimic4_icd10/*
 # !data/mimic4/mimic4_icd10/disch_dev_split.csv
 !data/mimic4/mimic4_icd10/test_full.csv
 # !data/mimic4/mimic4_icd10/disch_train_split.csv
+!data/mimic4/mimic4_icd10/vocab.csv
+
 
