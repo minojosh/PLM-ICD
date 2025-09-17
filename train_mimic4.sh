@@ -23,11 +23,11 @@ fi
 PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True accelerate launch run_icd.py \
     --train_file ../data/mimic4/mimic4_icd10/train_full.csv \
     --validation_file ../data/mimic4/mimic4_icd10/dev_full.csv \
-    --max_length 512 \
+    --max_length 256 \
     --chunk_size 128 \
     --model_name_or_path $MODEL_NAME \
     --per_device_train_batch_size 1 \
-    --gradient_accumulation_steps 4 \
+    --gradient_accumulation_steps 8 \
     --per_device_eval_batch_size 1 \
     --num_train_epochs $EPOCHS \
     --num_warmup_steps 50 \
