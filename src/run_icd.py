@@ -29,6 +29,10 @@ import transformers
 import torch
 import numpy as np
 from accelerate import Accelerator, DistributedDataParallelKwargs
+try:
+    from bitsandbytes.nn import Linear4bit, Linear8bitLt  # type: ignore
+except Exception:  # bitsandbytes may not always be available/importable
+    Linear4bit, Linear8bitLt = (), ()
 from transformers import (
     AutoConfig,
     AutoModelForSequenceClassification,
@@ -334,6 +338,43 @@ def main():
             quantization_config=quantization_config,
             device_map="auto" if quantization_config else None,
         )
+
+    # --- ensure classification/attention head layers are not quantized (bnb) ---
+    # Some versions of bitsandbytes attempt to quantize newly added Linear layers in custom heads,
+    # which can break forward due to uninitialized FP4 state. We replace them with standard nn.Linear.
+    def _maybe_dequantize_head_layers(m):
+        # Identify candidate head layers across modes
+        candidates = []
+        if hasattr(m, "classifier"):
+            candidates.append("classifier")
+        for nm in ("first_linear", "second_linear", "third_linear"):
+            if hasattr(m, nm):
+                candidates.append(nm)
+
+        device = next(m.parameters()).device
+        dtype = next(m.parameters()).dtype
+
+        for name in candidates:
+            layer = getattr(m, name)
+            layer_cls = layer.__class__.__name__
+            is_bnb = (Linear4bit and isinstance(layer, Linear4bit)) or (Linear8bitLt and isinstance(layer, Linear8bitLt)) or ("bitsandbytes" in layer.__class__.__module__)
+            if is_bnb:
+                in_f = layer.in_features if hasattr(layer, "in_features") else layer.weight.shape[1]
+                out_f = layer.out_features if hasattr(layer, "out_features") else layer.weight.shape[0]
+                bias = getattr(layer, "bias", None) is not None
+                new_lin = torch.nn.Linear(in_f, out_f, bias=bias, device=device, dtype=dtype)
+                # Try to copy weights if accessible; otherwise keep init
+                try:
+                    with torch.no_grad():
+                        new_lin.weight.copy_(layer.weight.to(dtype))
+                        if bias and hasattr(layer, "bias") and layer.bias is not None:
+                            new_lin.bias.copy_(layer.bias.to(dtype))
+                except Exception:
+                    pass
+                setattr(m, name, new_lin)
+                logger.info(f"Replaced quantized head layer '{name}' ({layer_cls}) with nn.Linear on {device} {dtype}")
+
+    _maybe_dequantize_head_layers(model)
 
     # --- add LoRA if 4bit ---
     if args.quantization == "4bit":
