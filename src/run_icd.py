@@ -271,7 +271,8 @@ def main():
     if args.validation_file is not None:
         data_files["validation"] = args.validation_file
     extension = (args.train_file if args.train_file is not None else args.validation_file).split(".")[-1]
-    raw_datasets = load_dataset(extension, data_files=data_files, streaming=True)
+    # Use map-style datasets (not streaming) so we can compute lengths and sample examples
+    raw_datasets = load_dataset(extension, data_files=data_files)
     # See more about loading any type of standard or custom dataset at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
 
@@ -335,13 +336,42 @@ def main():
 
     # --- add LoRA if 4bit ---
     if args.quantization == "4bit":
+        # Dynamically detect attention projection module names for LoRA injection
+        def guess_lora_targets(base_model):
+            names = [n for n, _ in base_model.named_modules()]
+            has = lambda s: any(s in n for n in names)
+
+            # Phi-3 fused attention
+            if has("qkv_proj") and (has("o_proj") or has("out_proj")):
+                return [m for m in ["qkv_proj", "o_proj"] if has(m)]
+
+            # Separate Q/K/V projections
+            qkv = [m for m in ["q_proj", "k_proj", "v_proj"] if has(m)]
+            o = [m for m in ["o_proj", "out_proj"] if has(m)]
+            if len(qkv) >= 2 and len(o) >= 1:
+                return qkv + o
+
+            # Legacy naming (unlikely)
+            if has("Wqkv") and has("out_proj"):
+                return ["Wqkv", "out_proj"]
+
+            # Fallback: try common names if present
+            fallback = [m for m in ["qkv_proj", "q_proj", "k_proj", "v_proj", "o_proj", "out_proj"] if has(m)]
+            return fallback if fallback else None
+
+        detected_targets = guess_lora_targets(model)
+        if not detected_targets:
+            logger.warning("LoRA: Could not detect attention projection modules; defaulting to ['qkv_proj','o_proj']")
+            detected_targets = ["qkv_proj", "o_proj"]
+        logger.info(f"LoRA: using target_modules={detected_targets}")
+
         lora_config = LoraConfig(
             r=args.lora_r,
             lora_alpha=args.lora_alpha,
-            target_modules=["qkv_proj", "o_proj"],  # Match Phi-3 attention module names
+            target_modules=detected_targets,
             lora_dropout=args.lora_dropout,
             bias="none",
-            task_type="SEQ_CLS",  # since you’re doing sequence classification
+            task_type="SEQ_CLS",  # sequence classification
         )
         model = get_peft_model(model, lora_config)
         model.print_trainable_parameters()
