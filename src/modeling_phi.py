@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2023 Microsoft and The HuggingFace Inc. team.
+# Copyright 2024 Microsoft and The HuggingFace Inc. team.
 # Licensed under the Apache License, Version 2.0 (the "License");
 
 """PyTorch Phi model for multilabel classification."""
@@ -9,17 +9,17 @@ import torch
 import torch.utils.checkpoint
 from torch import nn
 from torch.nn import BCEWithLogitsLoss
-from transformers import PhiModel, PhiPreTrainedModel
+from transformers import Phi3Model, Phi3PreTrainedModel
 from transformers.modeling_outputs import SequenceClassifierOutput
 
 
-class PhiForMultilabelClassification(PhiPreTrainedModel):
+class PhiForMultilabelClassification(Phi3PreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.num_labels = config.num_labels
         self.model_mode = getattr(config, 'model_mode', 'laat')  # Default to laat if not set
 
-        self.model = PhiModel(config)
+        self.model = Phi3Model(config)
         self.dropout = nn.Dropout(getattr(config, 'resid_pdrop', 0.1))  # Use getattr for compatibility
         
         if "cls" in self.model_mode:
