@@ -2,5 +2,24 @@
 *.csv
 /home/justjosh/Projects/PLM-ICD/data/mimic4
 __pycache__/
-data/mimic*/*
+*txt
 caml-mimic/predictions/*
+# Ignore everything in mimic4_icd10
+data/mimic4/mimic4_icd10/*
+# But keep these specific files
+# !data/mimic4/mimic4_icd10/ALL_CODES.csv
+!data/mimic4/mimic4_icd10/ALL_CODES.txt
+# !data/mimic4/mimic4_icd10/ALL_CODES_filtered.csv
+# !data/mimic4/mimic4_icd10/dev_full_hadm_ids.csv
+# !data/mimic4/mimic4_icd10/disch_test_split.csv
+# !data/mimic4/mimic4_icd10/test_full_hadm_ids.csv
+!data/mimic4/mimic4_icd10/train_full.csv
+# !data/mimic4/mimic4_icd10/disch_10_filtered.csv
+# !data/mimic4/mimic4_icd10/disch_10_full.csv
+# !data/mimic4/mimic4_icd10/notes_labeled_icd10_filtered.csv
+# !data/mimic4/mimic4_icd10/train_full_hadm_ids.csv
+!data/mimic4/mimic4_icd10/dev_full.csv
+# !data/mimic4/mimic4_icd10/disch_dev_split.csv
+!data/mimic4/mimic4_icd10/test_full.csv
+# !data/mimic4/mimic4_icd10/disch_train_split.csv
+
