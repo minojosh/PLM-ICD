@@ -28,6 +28,8 @@ PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True accelerate launch run_icd.py \
     --model_name_or_path $MODEL_NAME \
     --per_device_train_batch_size 1 \
     --gradient_accumulation_steps 8 \
+    --gradient_checkpointing True \
+    --fp16 True \
     --per_device_eval_batch_size 1 \
     --num_train_epochs $EPOCHS \
     --num_warmup_steps 50 \
