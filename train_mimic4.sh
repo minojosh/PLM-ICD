@@ -19,7 +19,8 @@ else
     exit 1
 fi
 
-python3 run_icd.py \
+# python3 run_icd.py \
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True accelerate launch run_icd.py 
     --train_file ../data/mimic4/mimic4_icd10/train_full.csv \
     --validation_file ../data/mimic4/mimic4_icd10/dev_full.csv \
     --max_length 512 \
