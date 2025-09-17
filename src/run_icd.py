@@ -297,7 +297,26 @@ def main():
         result = tokenizer(*texts, padding=padding, max_length=args.max_length, truncation=True, add_special_tokens="cls" not in args.model_mode)
         if "label" in examples:
             result["labels"] = examples["label"]
-            result["label_ids"] = [[label_to_id[label.strip()] for label in label_string.strip().split(';') if label.strip() != ""] if label_string is not None else [] for label_string in examples["label"]]
+            # Debug: print first few examples to see what's happening
+            if len(examples["label"]) > 0:
+                print(f"DEBUG: Processing {len(examples['label'])} examples")
+                print(f"DEBUG: First label example: {examples['label'][0] if examples['label'] else 'None'}")
+                print(f"DEBUG: Available label codes: {len(label_list)} codes")
+            
+            label_ids_list = []
+            for label_string in examples["label"]:
+                if label_string is not None and label_string.strip():
+                    label_codes = [label.strip() for label in label_string.strip().split(';') if label.strip() != ""]
+                    label_ids = [label_to_id[label_code] for label_code in label_codes if label_code in label_to_id]
+                    if len(label_codes) != len(label_ids):
+                        missing_codes = [code for code in label_codes if code not in label_to_id]
+                        print(f"DEBUG: Missing codes in label_to_id: {missing_codes}")
+                    label_ids_list.append(label_ids)
+                else:
+                    label_ids_list.append([])
+            
+            result["label_ids"] = label_ids_list
+            print(f"DEBUG: Created label_ids for {len(label_ids_list)} examples")
         return result
 
     remove_columns = raw_datasets["train"].column_names if args.train_file is not None else raw_datasets["validation"].column_names
