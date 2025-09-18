@@ -85,6 +85,21 @@ def parse_args():
         "--code_file", type=str, default=None, help="A txt file containing all codes."
     )
     parser.add_argument(
+        "--predict_file", type=str, default=None, help="A csv or json file containing texts to predict on (unlabeled)."
+    )
+    parser.add_argument(
+        "--predictions_out", type=str, default=None, help="Optional path to write predictions CSV."
+    )
+    parser.add_argument(
+        "--text_column", type=str, default="text", help="Column name containing the clinical note text."
+    )
+    parser.add_argument(
+        "--top_k", type=int, default=10, help="Top-K codes to output for prediction mode."
+    )
+    parser.add_argument(
+        "--threshold", type=float, default=0.5, help="Probability threshold for prediction mode."
+    )
+    parser.add_argument(
         "--max_length",
         type=int,
         default=128,
@@ -212,7 +227,7 @@ def parse_args():
     args = parser.parse_args()
 
     # Sanity checks
-    if args.task_name is None and args.train_file is None and args.validation_file is None:
+    if args.task_name is None and args.train_file is None and args.validation_file is None and args.predict_file is None:
         raise ValueError("Need either a task name or a training/validation file.")
     else:
         if args.train_file is not None:
@@ -275,7 +290,11 @@ def main():
         data_files["train"] = args.train_file
     if args.validation_file is not None:
         data_files["validation"] = args.validation_file
-    extension = (args.train_file if args.train_file is not None else args.validation_file).split(".")[-1]
+    if args.predict_file is not None:
+        data_files["predict"] = args.predict_file
+    # Choose extension from whichever file is provided first
+    first_path = args.train_file or args.validation_file or args.predict_file
+    extension = first_path.split(".")[-1]
     # Use map-style datasets (not streaming) so we can compute lengths and sample examples
     raw_datasets = load_dataset(extension, data_files=data_files, streaming=False)
     # See more about loading any type of standard or custom dataset at
@@ -420,7 +439,7 @@ def main():
 
 
 
-    sentence1_key, sentence2_key = "text", None
+    sentence1_key, sentence2_key = args.text_column, None
 
     label_to_id = {v: i for i, v in enumerate(label_list)}
 
@@ -456,12 +475,14 @@ def main():
             print(f"DEBUG: Created label_ids for {len(label_ids_list)} examples")
         return result
 
-    remove_columns = raw_datasets["train"].column_names if args.train_file is not None else raw_datasets["validation"].column_names
+    # Remove original columns; pick from any available split
+    any_split = "train" if "train" in raw_datasets else ("validation" if "validation" in raw_datasets else next(iter(raw_datasets.keys())))
+    remove_columns = raw_datasets[any_split].column_names
     processed_datasets = raw_datasets.map(
         preprocess_function, batched=True, remove_columns=remove_columns
     )
 
-    eval_dataset = processed_datasets["validation"]
+    eval_dataset = processed_datasets["validation"] if "validation" in processed_datasets else None
 
     if args.num_train_epochs > 0:
         train_dataset = processed_datasets["train"]
@@ -520,7 +541,9 @@ def main():
         train_dataloader = DataLoader(
             train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
         )
-    eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+    eval_dataloader = None
+    if eval_dataset is not None:
+        eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
 
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
@@ -562,7 +585,7 @@ def main():
         )
 
     # Get the metric function
-    if args.task_name is not None:
+    if args.task_name is not None and eval_dataloader is not None:
         try:
             from evaluate import load as load_metric
             metric = load_metric("glue", args.task_name)
@@ -625,7 +648,8 @@ def main():
             logger.info(f"epoch {epoch} finished")
             logger.info(f"metrics: {metrics}")
     
-    if args.num_train_epochs == 0 and accelerator.is_local_main_process:
+    # --- Evaluation-only mode ---
+    if args.num_train_epochs == 0 and eval_dataloader is not None and accelerator.is_local_main_process:
         model.eval()
         all_preds = []
         all_preds_raw = []
@@ -649,6 +673,61 @@ def main():
             all_preds = (all_preds_raw > t).astype(int)
             metrics = all_metrics(yhat=all_preds, y=all_labels, yhat_raw=all_preds_raw, k=[5,8,15])
             logger.info(f"metrics for threshold {t}: {metrics}")
+
+    # --- Predict mode for unlabeled inputs ---
+    if args.predict_file is not None:
+        if "predict" not in processed_datasets:
+            raise ValueError("predict_file was provided but 'predict' split not found after processing")
+
+        def predict_collator(features):
+            batch = dict()
+            max_length = max([len(f["input_ids"]) for f in features])
+            if max_length % args.chunk_size != 0:
+                max_length = max_length - (max_length % args.chunk_size) + args.chunk_size
+            batch["input_ids"] = torch.tensor([
+                f["input_ids"] + [tokenizer.pad_token_id] * (max_length - len(f["input_ids"]))
+                for f in features
+            ]).contiguous().view((len(features), -1, args.chunk_size))
+            if "attention_mask" in features[0]:
+                batch["attention_mask"] = torch.tensor([
+                    f["attention_mask"] + [0] * (max_length - len(f["attention_mask"]))
+                    for f in features
+                ]).contiguous().view((len(features), -1, args.chunk_size))
+            if "token_type_ids" in features[0]:
+                batch["token_type_ids"] = torch.tensor([
+                    f["token_type_ids"] + [0] * (max_length - len(f["token_type_ids"]))
+                    for f in features
+                ]).contiguous().view((len(features), -1, args.chunk_size))
+            return batch
+
+        predict_dataset = processed_datasets["predict"]
+        predict_dataloader = DataLoader(predict_dataset, collate_fn=predict_collator, batch_size=args.per_device_eval_batch_size)
+
+        model.eval()
+        import csv, os
+        out_path = args.predictions_out or os.path.join(args.output_dir or ".", "predictions.csv")
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        with open(out_path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["index", "topk_codes", "topk_scores", "threshold_codes"])
+            for idx, batch in enumerate(tqdm(predict_dataloader)):
+                with torch.no_grad():
+                    outputs = model(**batch)
+                probs = outputs.logits.sigmoid().cpu().numpy()  # [B, num_labels]
+                for b in range(probs.shape[0]):
+                    p = probs[b]
+                    topk_idx = p.argsort()[::-1][:args.top_k]
+                    topk_codes = [label_list[i] for i in topk_idx]
+                    topk_scores = [float(p[i]) for i in topk_idx]
+                    th_idx = np.where(p >= args.threshold)[0]
+                    th_codes = [label_list[i] for i in th_idx]
+                    writer.writerow([
+                        idx * args.per_device_eval_batch_size + b,
+                        ";".join(topk_codes),
+                        ";".join([f"{s:.6f}" for s in topk_scores]),
+                        ";".join(th_codes),
+                    ])
+        logger.info(f"Wrote predictions to {out_path}")
 
     if args.output_dir is not None and args.num_train_epochs > 0:
         accelerator.wait_for_everyone()
